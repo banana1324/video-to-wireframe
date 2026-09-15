@@ -1,56 +1,57 @@
 # Video to Wireframe
 
-A project for converting objects in video into animated 3D wireframes.
-
-The browser displays predefined meshes. The Python scripts extract video frames and estimate depth. Full video-to-wireframe playback is not available yet.
+Convert a video of a spinning object into an approximate 3D wireframe. The browser rotates the generated model; scroll over it to zoom in or out.
 
 ## Setup on Windows
 
-Use Python 3.10 and an NVIDIA GPU with a compatible driver. The current ML scripts use CUDA explicitly. GPU computation and single-frame depth estimation have been tested on a GTX 1660 with 6 GB VRAM.
-
-Open PowerShell in the repository's main folder and run:
+Use Python 3.10. Open PowerShell in the `video-wireframe` folder:
 
 ```powershell
-cd video-wireframe
 py -3.10 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu126
-python -m pip install opencv-python==4.12.0.88 transformers==4.57.1
+python -m pip install opencv-python==4.12.0.88 numpy scipy scikit-image pillow
 ```
 
-Model files download on first use, so an internet connection is needed initially.
+The black-background workflow below does not require a GPU or ML models.
 
 ## Usage
 
-### View a mesh
-
-Open `index.html` in a browser. After changing `index.js`, save it and refresh the page.
-
-### Extract a frame and estimate depth
-
-1. Copy an MP4 into `video-wireframe` and name it `videoInput.mp4`.
-2. In PowerShell, enter `video-wireframe` and activate the environment if needed:
+1. Save your video as `videoInput.mp4` in the project folder.
+2. With the environment activated, run:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
+python extract_frames.py --count 24
+python build_surface.py model --black-background --rotation-degrees 360
+python -m http.server 8000
 ```
 
-3. Run:
+3. Open [localhost:8000](http://localhost:8000). Scroll up to zoom in and down to zoom out. Press **Ctrl+F5** after rebuilding.
+
+Use the actual rotation angle from the first extracted frame to the last. `360` means one complete turn; the original sample uses `735.5`.
+
+Keep `index.html`, `index.js`, and the generated `model-data.js` together. The HTML must load `model-data.js` before `index.js`.
+
+To use another video, replace `videoInput.mp4` and repeat the commands with its rotation angle. Rename the old `frames` and `mask_frames` folders first to avoid mixing old and new views.
+
+## Other backgrounds
+
+Install the optional ML dependencies. These PyTorch commands are for an NVIDIA GPU with a compatible driver:
 
 ```powershell
-python extract_frame.py
-python estimate_depth.py
+python -m pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu126
+python -m pip install transformers==4.57.1
 ```
 
-4. Open the generated images in `video-wireframe`:
+After extracting frames, run:
 
-| File | Contents |
-| --- | --- |
-| `frame.jpg` | First video frame |
-| `depth.png` | Depth preview; brighter areas are predicted to be nearer |
-| `depth.npy` | Numerical depth predictions |
+```powershell
+python segment_object.py
+python build_surface.py model --rotation-degrees 360
+```
 
-Depth values are estimates, not measured distances in metres. These outputs are not connected to the browser viewer yet.
+Click inside the object and press Enter. Check the generated masks before building. Model files download on first use. Depth estimation is not needed for this reconstruction method.
 
-Object selection is WIP.
+## Limitations
+
+Use a fixed camera and a rigid object spinning steadily around a vertical axis. The black-background shortcut works best with a bright, solid object without holes. Reconstruction uses silhouettes, so it approximates the outer shape and cannot recover hidden dents or precise measurements.
